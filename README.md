@@ -1,19 +1,19 @@
 # nm_cleaner
 
-A command-line tool to clean `node_modules` directories recursively.
+A command-line tool to clean `node_modules` and `__pycache__` directories recursively.
 
 ## Overview
 
-`nm_cleaner` scans your project directory, identifies all `node_modules` directories, and removes them after confirmation. This is useful for freeing up disk space by cleaning up unused Node.js project dependencies.
+`nm_cleaner` scans your project directory, identifies all `node_modules` and `__pycache__` directories, and removes them after confirmation. This is useful for freeing up disk space by cleaning up unused Node.js project dependencies and Python cache files.
 
 ## Features
 
-- Recursively finds all `node_modules` directories
+- Recursively finds all `node_modules` and `__pycache__` directories
 - Shows a list of directories to be deleted before deletion
 - Asks for confirmation before deleting
 - Supports interactive mode for individual confirmations
 - Supports dry-run mode to preview what would be deleted
-- Efficient scanning (doesn't search inside `node_modules`)
+- Efficient scanning (doesn't search inside target directories)
 
 ## Installation
 
@@ -46,7 +46,7 @@ nm_cleaner
 ```
 usage: nm_cleaner [-h] [-d DIRECTORY] [-i] [-n] [-y] [-v]
 
-Clean node_modules directories recursively
+Clean node_modules and __pycache__ directories recursively
 
 options:
   -h, --help            show this help message and exit
@@ -93,7 +93,7 @@ nm_cleaner -d /path/to/projects --dry-run
 ## How it works
 
 1. Scans the target directory recursively
-2. Identifies all `node_modules` directories (doesn't search inside them for efficiency)
+2. Identifies all `node_modules` and `__pycache__` directories (doesn't search inside them for efficiency)
 3. Displays a list of directories to be deleted
 4. Asks for user confirmation (unless `-y` is used)
 5. Deletes the confirmed directories

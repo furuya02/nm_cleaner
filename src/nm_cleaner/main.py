@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-nm_cleaner - Clean node_modules directories recursively
+nm_cleaner - Clean node_modules and __pycache__ directories recursively
 
-This tool scans the specified directory for node_modules directories
-and removes them after user confirmation.
+This tool scans the specified directory for node_modules and __pycache__
+directories and removes them after user confirmation.
 """
 
 import argparse
@@ -13,40 +13,44 @@ import sys
 from pathlib import Path
 from typing import List
 
+# Target directories to clean
+TARGET_DIRS = {"node_modules", "__pycache__"}
 
-def find_node_modules(root_path: Path) -> List[Path]:
+
+def find_target_directories(root_path: Path) -> List[Path]:
     """
-    Find all node_modules directories under the specified root path.
+    Find all target directories (node_modules, __pycache__) under the specified root path.
 
     Args:
         root_path: The root directory to start searching from
 
     Returns:
-        List of paths to node_modules directories found
+        List of paths to target directories found
     """
-    node_modules_dirs: List[Path] = []
+    target_dirs: List[Path] = []
 
     try:
         for current_dir, subdirs, _ in os.walk(root_path):
             current_path = Path(current_dir)
 
-            # If current directory is node_modules, record it
-            if current_path.name == "node_modules":
-                node_modules_dirs.append(current_path)
-                # Don't search inside node_modules
+            # If current directory is a target, record it
+            if current_path.name in TARGET_DIRS:
+                target_dirs.append(current_path)
+                # Don't search inside target directories
                 subdirs.clear()
                 continue
 
-            # If subdirectory contains node_modules, add it and exclude from further search
-            if "node_modules" in subdirs:
-                node_modules_path = current_path / "node_modules"
-                node_modules_dirs.append(node_modules_path)
-                subdirs.remove("node_modules")
+            # Check for target directories in subdirs
+            for target_name in TARGET_DIRS:
+                if target_name in subdirs:
+                    target_path = current_path / target_name
+                    target_dirs.append(target_path)
+                    subdirs.remove(target_name)
 
     except PermissionError as e:
         print(f"Warning: Permission denied: {e}", file=sys.stderr)
 
-    return node_modules_dirs
+    return target_dirs
 
 
 def display_directories(
@@ -54,17 +58,17 @@ def display_directories(
     root_directory: Path
 ) -> None:
     """
-    Display the list of found node_modules directories.
+    Display the list of found target directories.
 
     Args:
         directories: List of directory paths to display
         root_directory: The root directory for relative path display
     """
     if not directories:
-        print("No node_modules directories found.")
+        print("No target directories found.")
         return
 
-    print(f"\nFound {len(directories)} node_modules director{'ies' if len(directories) > 1 else 'y'}:\n")
+    print(f"\nFound {len(directories)} director{'ies' if len(directories) > 1 else 'y'}:\n")
     for directory in sorted(directories):
         try:
             relative_path = directory.relative_to(root_directory)
@@ -143,7 +147,7 @@ def interactive_delete(
         Tuple of (deleted_count, skipped_count)
     """
     if not directories:
-        print("No node_modules directories found.")
+        print("No target directories found.")
         return 0, 0
 
     deleted_count = 0
@@ -189,7 +193,7 @@ def main() -> int:
         Exit code (0 for success, 1 for error)
     """
     parser = argparse.ArgumentParser(
-        description="Clean node_modules directories recursively",
+        description="Clean node_modules and __pycache__ directories recursively",
         prog="nm_cleaner"
     )
     parser.add_argument(
@@ -233,12 +237,12 @@ def main() -> int:
 
     print(f"Scanning: {root_directory}")
 
-    node_modules_dirs = find_node_modules(root_directory)
+    target_dirs = find_target_directories(root_directory)
 
     if args.interactive:
         # Interactive mode
         deleted, skipped = interactive_delete(
-            node_modules_dirs,
+            target_dirs,
             root_directory,
             args.dry_run
         )
@@ -247,9 +251,9 @@ def main() -> int:
             print(f"Skipped: {skipped} director{'ies' if skipped != 1 else 'y'}")
     else:
         # Normal mode
-        display_directories(node_modules_dirs, root_directory)
+        display_directories(target_dirs, root_directory)
 
-        if not node_modules_dirs:
+        if not target_dirs:
             return 0
 
         if args.dry_run:
@@ -261,7 +265,7 @@ def main() -> int:
                 print("Deletion cancelled.")
                 return 0
 
-        deleted = delete_directories(node_modules_dirs, root_directory)
+        deleted = delete_directories(target_dirs, root_directory)
         print(f"\nDeleted {deleted} director{'ies' if deleted != 1 else 'y'}.")
 
     return 0
