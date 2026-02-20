@@ -8,6 +8,13 @@ nm_cleaner - node_modules, __pycache__, venvディレクトリを再帰的に削
 
 venvディレクトリについては、Pythonのvenvモジュールで作成された
 仮想環境のみを対象とし、同名の通常ディレクトリは削除しない。
+
+venv削除時の自動バックアップ機能:
+    venvディレクトリを削除する際、プロジェクトルートに
+    requirements.txtが存在しない場合は、pip freezeを実行して
+    依存パッケージの一覧を自動的に保存する。これにより、
+    venv削除後も `pip install -r requirements.txt` で
+    環境を再構築できる。
 """
 
 import argparse
