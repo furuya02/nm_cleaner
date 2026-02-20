@@ -72,12 +72,26 @@ def find_target_directories(root_path: Path) -> List[Path]:
                 subdirs.clear()
                 continue
 
+            # 現在のディレクトリがPythonのvenv仮想環境かチェック
+            if current_path.name == VENV_DIR_NAME and is_python_venv(current_path):
+                target_dirs.append(current_path)
+                # venv内部は検索しない
+                subdirs.clear()
+                continue
+
             # Check for target directories in subdirs
             for target_name in TARGET_DIRS:
                 if target_name in subdirs:
                     target_path = current_path / target_name
                     target_dirs.append(target_path)
                     subdirs.remove(target_name)
+
+            # サブディレクトリ内のvenvディレクトリをチェック
+            if VENV_DIR_NAME in subdirs:
+                venv_path = current_path / VENV_DIR_NAME
+                if is_python_venv(venv_path):
+                    target_dirs.append(venv_path)
+                    subdirs.remove(VENV_DIR_NAME)
 
     except PermissionError as e:
         print(f"Warning: Permission denied: {e}", file=sys.stderr)
