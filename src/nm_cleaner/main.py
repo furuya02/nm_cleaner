@@ -10,9 +10,9 @@ venvディレクトリについては、Pythonのvenvモジュールで作成さ
 仮想環境のみを対象とし、同名の通常ディレクトリは削除しない。
 
 venv削除時の自動バックアップ機能:
-    venvディレクトリを削除する際、プロジェクトルートに
-    requirements.txtが存在しない場合は、pip freezeを実行して
-    依存パッケージの一覧を自動的に保存する。これにより、
+    venvディレクトリを削除する際、pip freezeを実行して
+    依存パッケージの一覧をrequirements.txtとして自動的に保存する。
+    既存のrequirements.txtがある場合は上書きする。これにより、
     venv削除後も `pip install -r requirements.txt` で
     環境を再構築できる。
 """
@@ -89,8 +89,8 @@ def export_venv_requirements(venv_dir: Path, dry_run: bool = False) -> bool:
     venv仮想環境からrequirements.txtをエクスポートする。
 
     venvの親ディレクトリ（通常はプロジェクトルート）に
-    requirements.txtが存在しない場合のみ、pip freezeを実行して
-    依存パッケージの一覧をrequirements.txtとして保存する。
+    pip freezeを実行して依存パッケージの一覧をrequirements.txtとして保存する。
+    既存のrequirements.txtがある場合は上書きする。
 
     Args:
         venv_dir: venv仮想環境のディレクトリパス
@@ -98,15 +98,12 @@ def export_venv_requirements(venv_dir: Path, dry_run: bool = False) -> bool:
 
     Returns:
         requirements.txtを作成した場合はTrue、
-        既に存在する場合や作成に失敗した場合はFalse
+        作成に失敗した場合はFalse
     """
     # requirements.txtの出力先（venvの親ディレクトリ）
     project_dir = venv_dir.parent
     requirements_path = project_dir / "requirements.txt"
-
-    # 既にrequirements.txtが存在する場合はスキップ
-    if requirements_path.exists():
-        return False
+    is_update = requirements_path.exists()
 
     # venv内のpipのパスを取得
     pip_path = get_venv_pip_path(venv_dir)
@@ -115,7 +112,8 @@ def export_venv_requirements(venv_dir: Path, dry_run: bool = False) -> bool:
         return False
 
     if dry_run:
-        print(f"  Would create: {requirements_path}")
+        action = "update" if is_update else "create"
+        print(f"  Would {action}: {requirements_path}")
         return True
 
     try:
@@ -137,7 +135,8 @@ def export_venv_requirements(venv_dir: Path, dry_run: bool = False) -> bool:
         # 出力が空でない場合のみファイルを作成
         if result.stdout.strip():
             requirements_path.write_text(result.stdout)
-            print(f"  Created: {requirements_path}")
+            action = "Updated" if is_update else "Created"
+            print(f"  {action}: {requirements_path}")
             return True
         else:
             print(f"  Skipped: {venv_dir} (no packages installed)")
@@ -257,7 +256,7 @@ def delete_directories(
     指定されたディレクトリを削除する。
 
     venvディレクトリの場合は、削除前にrequirements.txtを
-    自動生成する（既に存在する場合はスキップ）。
+    自動生成する（既に存在する場合は上書き）。
 
     Args:
         directories: 削除対象のディレクトリリスト
@@ -299,7 +298,7 @@ def interactive_delete(
     各ディレクトリの削除を対話的に確認する。
 
     venvディレクトリの場合は、削除前にrequirements.txtを
-    自動生成する（既に存在する場合はスキップ）。
+    自動生成する（既に存在する場合は上書き）。
 
     Args:
         directories: 削除候補のディレクトリリスト
