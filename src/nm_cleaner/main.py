@@ -16,6 +16,38 @@ from typing import List
 # Target directories to clean
 TARGET_DIRS = {"node_modules", "__pycache__"}
 
+# venvディレクトリは追加の検証が必要なため、別途定義
+VENV_DIR_NAME = "venv"
+
+
+def is_python_venv(directory: Path) -> bool:
+    """
+    指定されたディレクトリがPythonのvenv仮想環境かどうかを判定する。
+
+    Pythonのvenvモジュールで作成された仮想環境は以下の特徴を持つ:
+    - ルートディレクトリにpyvenv.cfgファイルが存在する
+    - bin/activate (Unix系) または Scripts/activate (Windows) が存在する
+
+    単に「venv」という名前のディレクトリを誤って削除しないよう、
+    上記の両方の条件を満たす場合のみTrueを返す。
+
+    Args:
+        directory: 検証対象のディレクトリパス
+
+    Returns:
+        Pythonのvenv仮想環境の場合はTrue、そうでなければFalse
+    """
+    # pyvenv.cfgファイルの存在確認
+    pyvenv_cfg = directory / "pyvenv.cfg"
+    if not pyvenv_cfg.exists():
+        return False
+
+    # activateスクリプトの存在確認 (Unix: bin/activate, Windows: Scripts/activate)
+    unix_activate = directory / "bin" / "activate"
+    windows_activate = directory / "Scripts" / "activate"
+
+    return unix_activate.exists() or windows_activate.exists()
+
 
 def find_target_directories(root_path: Path) -> List[Path]:
     """
