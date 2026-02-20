@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 """
-nm_cleaner - Clean node_modules and __pycache__ directories recursively
+nm_cleaner - node_modules, __pycache__, venvディレクトリを再帰的に削除するツール
 
-This tool scans the specified directory for node_modules and __pycache__
-directories and removes them after user confirmation.
+指定されたディレクトリ配下のnode_modules、__pycache__、
+およびPythonのvenv仮想環境ディレクトリを検索し、
+ユーザーの確認後に削除する。
+
+venvディレクトリについては、Pythonのvenvモジュールで作成された
+仮想環境のみを対象とし、同名の通常ディレクトリは削除しない。
 """
 
 import argparse
@@ -51,13 +55,18 @@ def is_python_venv(directory: Path) -> bool:
 
 def find_target_directories(root_path: Path) -> List[Path]:
     """
-    Find all target directories (node_modules, __pycache__) under the specified root path.
+    指定されたルートパス配下の削除対象ディレクトリを全て検索する。
+
+    削除対象:
+    - node_modules: Node.jsの依存パッケージディレクトリ
+    - __pycache__: Pythonのバイトコードキャッシュディレクトリ
+    - venv: Pythonのvenvモジュールで作成された仮想環境（検証済みのもののみ）
 
     Args:
-        root_path: The root directory to start searching from
+        root_path: 検索を開始するルートディレクトリ
 
     Returns:
-        List of paths to target directories found
+        検出された削除対象ディレクトリのパスリスト
     """
     target_dirs: List[Path] = []
 
@@ -239,7 +248,7 @@ def main() -> int:
         Exit code (0 for success, 1 for error)
     """
     parser = argparse.ArgumentParser(
-        description="Clean node_modules and __pycache__ directories recursively",
+        description="node_modules, __pycache__, venvディレクトリを再帰的に削除",
         prog="nm_cleaner"
     )
     parser.add_argument(
