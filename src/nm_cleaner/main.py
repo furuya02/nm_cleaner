@@ -13,9 +13,10 @@ venvディレクトリについては、Pythonのvenvモジュールで作成さ
 import argparse
 import os
 import shutil
+import subprocess
 import sys
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 # Target directories to clean
 TARGET_DIRS = {"node_modules", "__pycache__"}
@@ -51,6 +52,96 @@ def is_python_venv(directory: Path) -> bool:
     windows_activate = directory / "Scripts" / "activate"
 
     return unix_activate.exists() or windows_activate.exists()
+
+
+def get_venv_pip_path(venv_dir: Path) -> Optional[Path]:
+    """
+    venv仮想環境内のpip実行ファイルのパスを取得する。
+
+    Args:
+        venv_dir: venv仮想環境のディレクトリパス
+
+    Returns:
+        pipのパス。見つからない場合はNone
+    """
+    # Unix系: bin/pip
+    unix_pip = venv_dir / "bin" / "pip"
+    if unix_pip.exists():
+        return unix_pip
+
+    # Windows: Scripts/pip.exe
+    windows_pip = venv_dir / "Scripts" / "pip.exe"
+    if windows_pip.exists():
+        return windows_pip
+
+    return None
+
+
+def export_venv_requirements(venv_dir: Path, dry_run: bool = False) -> bool:
+    """
+    venv仮想環境からrequirements.txtをエクスポートする。
+
+    venvの親ディレクトリ（通常はプロジェクトルート）に
+    requirements.txtが存在しない場合のみ、pip freezeを実行して
+    依存パッケージの一覧をrequirements.txtとして保存する。
+
+    Args:
+        venv_dir: venv仮想環境のディレクトリパス
+        dry_run: Trueの場合、実際にはファイルを作成しない
+
+    Returns:
+        requirements.txtを作成した場合はTrue、
+        既に存在する場合や作成に失敗した場合はFalse
+    """
+    # requirements.txtの出力先（venvの親ディレクトリ）
+    project_dir = venv_dir.parent
+    requirements_path = project_dir / "requirements.txt"
+
+    # 既にrequirements.txtが存在する場合はスキップ
+    if requirements_path.exists():
+        return False
+
+    # venv内のpipのパスを取得
+    pip_path = get_venv_pip_path(venv_dir)
+    if pip_path is None:
+        print(f"  Warning: pip not found in {venv_dir}", file=sys.stderr)
+        return False
+
+    if dry_run:
+        print(f"  Would create: {requirements_path}")
+        return True
+
+    try:
+        # pip freezeを実行してrequirements.txtを生成
+        result = subprocess.run(
+            [str(pip_path), "freeze"],
+            capture_output=True,
+            text=True,
+            timeout=60
+        )
+
+        if result.returncode != 0:
+            print(
+                f"  Warning: pip freeze failed for {venv_dir}: {result.stderr}",
+                file=sys.stderr
+            )
+            return False
+
+        # 出力が空でない場合のみファイルを作成
+        if result.stdout.strip():
+            requirements_path.write_text(result.stdout)
+            print(f"  Created: {requirements_path}")
+            return True
+        else:
+            print(f"  Skipped: {venv_dir} (no packages installed)")
+            return False
+
+    except subprocess.TimeoutExpired:
+        print(f"  Warning: pip freeze timed out for {venv_dir}", file=sys.stderr)
+        return False
+    except OSError as e:
+        print(f"  Warning: Failed to export requirements: {e}", file=sys.stderr)
+        return False
 
 
 def find_target_directories(root_path: Path) -> List[Path]:
