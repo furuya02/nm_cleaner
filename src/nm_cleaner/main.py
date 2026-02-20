@@ -247,15 +247,18 @@ def delete_directories(
     dry_run: bool = False
 ) -> int:
     """
-    Delete the specified directories.
+    指定されたディレクトリを削除する。
+
+    venvディレクトリの場合は、削除前にrequirements.txtを
+    自動生成する（既に存在する場合はスキップ）。
 
     Args:
-        directories: List of directories to delete
-        root_directory: The root directory for relative path display
-        dry_run: If True, only simulate deletion
+        directories: 削除対象のディレクトリリスト
+        root_directory: 相対パス表示用のルートディレクトリ
+        dry_run: Trueの場合、実際には削除しない
 
     Returns:
-        Number of successfully deleted directories
+        削除に成功したディレクトリの数
     """
     deleted_count = 0
 
@@ -264,6 +267,10 @@ def delete_directories(
             relative_path = directory.relative_to(root_directory)
         except ValueError:
             relative_path = directory
+
+        # venvディレクトリの場合、削除前にrequirements.txtを生成
+        if directory.name == VENV_DIR_NAME and is_python_venv(directory):
+            export_venv_requirements(directory, dry_run)
 
         try:
             if not dry_run:
