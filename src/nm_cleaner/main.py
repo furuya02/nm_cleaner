@@ -112,7 +112,8 @@ def export_venv_requirements(venv_dir: Path, dry_run: bool = False) -> bool:
         return False
 
     if dry_run:
-        print(f"  Would create: {requirements_path}")
+        action = "update" if is_update else "create"
+        print(f"  Would {action}: {requirements_path}")
         return True
 
     try:
@@ -134,7 +135,8 @@ def export_venv_requirements(venv_dir: Path, dry_run: bool = False) -> bool:
         # 出力が空でない場合のみファイルを作成
         if result.stdout.strip():
             requirements_path.write_text(result.stdout)
-            print(f"  Created: {requirements_path}")
+            action = "Updated" if is_update else "Created"
+            print(f"  {action}: {requirements_path}")
             return True
         else:
             print(f"  Skipped: {venv_dir} (no packages installed)")
