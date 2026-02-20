@@ -103,10 +103,7 @@ def export_venv_requirements(venv_dir: Path, dry_run: bool = False) -> bool:
     # requirements.txtの出力先（venvの親ディレクトリ）
     project_dir = venv_dir.parent
     requirements_path = project_dir / "requirements.txt"
-
-    # 既にrequirements.txtが存在する場合はスキップ
-    if requirements_path.exists():
-        return False
+    is_update = requirements_path.exists()
 
     # venv内のpipのパスを取得
     pip_path = get_venv_pip_path(venv_dir)
