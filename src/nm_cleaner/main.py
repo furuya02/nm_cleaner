@@ -1,31 +1,170 @@
 #!/usr/bin/env python3
 """
-nm_cleaner - Clean node_modules and __pycache__ directories recursively
+nm_cleaner - node_modules, __pycache__, venvディレクトリを再帰的に削除するツール
 
-This tool scans the specified directory for node_modules and __pycache__
-directories and removes them after user confirmation.
+指定されたディレクトリ配下のnode_modules、__pycache__、
+およびPythonのvenv仮想環境ディレクトリを検索し、
+ユーザーの確認後に削除する。
+
+venvディレクトリについては、Pythonのvenvモジュールで作成された
+仮想環境のみを対象とし、同名の通常ディレクトリは削除しない。
+
+venv削除時の自動バックアップ機能:
+    venvディレクトリを削除する際、プロジェクトルートに
+    requirements.txtが存在しない場合は、pip freezeを実行して
+    依存パッケージの一覧を自動的に保存する。これにより、
+    venv削除後も `pip install -r requirements.txt` で
+    環境を再構築できる。
 """
 
 import argparse
 import os
 import shutil
+import subprocess
 import sys
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 # Target directories to clean
 TARGET_DIRS = {"node_modules", "__pycache__"}
 
+# venvディレクトリは追加の検証が必要なため、別途定義
+VENV_DIR_NAME = "venv"
+
+
+def is_python_venv(directory: Path) -> bool:
+    """
+    指定されたディレクトリがPythonのvenv仮想環境かどうかを判定する。
+
+    Pythonのvenvモジュールで作成された仮想環境は以下の特徴を持つ:
+    - ルートディレクトリにpyvenv.cfgファイルが存在する
+    - bin/activate (Unix系) または Scripts/activate (Windows) が存在する
+
+    単に「venv」という名前のディレクトリを誤って削除しないよう、
+    上記の両方の条件を満たす場合のみTrueを返す。
+
+    Args:
+        directory: 検証対象のディレクトリパス
+
+    Returns:
+        Pythonのvenv仮想環境の場合はTrue、そうでなければFalse
+    """
+    # pyvenv.cfgファイルの存在確認
+    pyvenv_cfg = directory / "pyvenv.cfg"
+    if not pyvenv_cfg.exists():
+        return False
+
+    # activateスクリプトの存在確認 (Unix: bin/activate, Windows: Scripts/activate)
+    unix_activate = directory / "bin" / "activate"
+    windows_activate = directory / "Scripts" / "activate"
+
+    return unix_activate.exists() or windows_activate.exists()
+
+
+def get_venv_pip_path(venv_dir: Path) -> Optional[Path]:
+    """
+    venv仮想環境内のpip実行ファイルのパスを取得する。
+
+    Args:
+        venv_dir: venv仮想環境のディレクトリパス
+
+    Returns:
+        pipのパス。見つからない場合はNone
+    """
+    # Unix系: bin/pip
+    unix_pip = venv_dir / "bin" / "pip"
+    if unix_pip.exists():
+        return unix_pip
+
+    # Windows: Scripts/pip.exe
+    windows_pip = venv_dir / "Scripts" / "pip.exe"
+    if windows_pip.exists():
+        return windows_pip
+
+    return None
+
+
+def export_venv_requirements(venv_dir: Path, dry_run: bool = False) -> bool:
+    """
+    venv仮想環境からrequirements.txtをエクスポートする。
+
+    venvの親ディレクトリ（通常はプロジェクトルート）に
+    requirements.txtが存在しない場合のみ、pip freezeを実行して
+    依存パッケージの一覧をrequirements.txtとして保存する。
+
+    Args:
+        venv_dir: venv仮想環境のディレクトリパス
+        dry_run: Trueの場合、実際にはファイルを作成しない
+
+    Returns:
+        requirements.txtを作成した場合はTrue、
+        既に存在する場合や作成に失敗した場合はFalse
+    """
+    # requirements.txtの出力先（venvの親ディレクトリ）
+    project_dir = venv_dir.parent
+    requirements_path = project_dir / "requirements.txt"
+
+    # 既にrequirements.txtが存在する場合はスキップ
+    if requirements_path.exists():
+        return False
+
+    # venv内のpipのパスを取得
+    pip_path = get_venv_pip_path(venv_dir)
+    if pip_path is None:
+        print(f"  Warning: pip not found in {venv_dir}", file=sys.stderr)
+        return False
+
+    if dry_run:
+        print(f"  Would create: {requirements_path}")
+        return True
+
+    try:
+        # pip freezeを実行してrequirements.txtを生成
+        result = subprocess.run(
+            [str(pip_path), "freeze"],
+            capture_output=True,
+            text=True,
+            timeout=60
+        )
+
+        if result.returncode != 0:
+            print(
+                f"  Warning: pip freeze failed for {venv_dir}: {result.stderr}",
+                file=sys.stderr
+            )
+            return False
+
+        # 出力が空でない場合のみファイルを作成
+        if result.stdout.strip():
+            requirements_path.write_text(result.stdout)
+            print(f"  Created: {requirements_path}")
+            return True
+        else:
+            print(f"  Skipped: {venv_dir} (no packages installed)")
+            return False
+
+    except subprocess.TimeoutExpired:
+        print(f"  Warning: pip freeze timed out for {venv_dir}", file=sys.stderr)
+        return False
+    except OSError as e:
+        print(f"  Warning: Failed to export requirements: {e}", file=sys.stderr)
+        return False
+
 
 def find_target_directories(root_path: Path) -> List[Path]:
     """
-    Find all target directories (node_modules, __pycache__) under the specified root path.
+    指定されたルートパス配下の削除対象ディレクトリを全て検索する。
+
+    削除対象:
+    - node_modules: Node.jsの依存パッケージディレクトリ
+    - __pycache__: Pythonのバイトコードキャッシュディレクトリ
+    - venv: Pythonのvenvモジュールで作成された仮想環境（検証済みのもののみ）
 
     Args:
-        root_path: The root directory to start searching from
+        root_path: 検索を開始するルートディレクトリ
 
     Returns:
-        List of paths to target directories found
+        検出された削除対象ディレクトリのパスリスト
     """
     target_dirs: List[Path] = []
 
@@ -40,12 +179,26 @@ def find_target_directories(root_path: Path) -> List[Path]:
                 subdirs.clear()
                 continue
 
+            # 現在のディレクトリがPythonのvenv仮想環境かチェック
+            if current_path.name == VENV_DIR_NAME and is_python_venv(current_path):
+                target_dirs.append(current_path)
+                # venv内部は検索しない
+                subdirs.clear()
+                continue
+
             # Check for target directories in subdirs
             for target_name in TARGET_DIRS:
                 if target_name in subdirs:
                     target_path = current_path / target_name
                     target_dirs.append(target_path)
                     subdirs.remove(target_name)
+
+            # サブディレクトリ内のvenvディレクトリをチェック
+            if VENV_DIR_NAME in subdirs:
+                venv_path = current_path / VENV_DIR_NAME
+                if is_python_venv(venv_path):
+                    target_dirs.append(venv_path)
+                    subdirs.remove(VENV_DIR_NAME)
 
     except PermissionError as e:
         print(f"Warning: Permission denied: {e}", file=sys.stderr)
@@ -101,15 +254,18 @@ def delete_directories(
     dry_run: bool = False
 ) -> int:
     """
-    Delete the specified directories.
+    指定されたディレクトリを削除する。
+
+    venvディレクトリの場合は、削除前にrequirements.txtを
+    自動生成する（既に存在する場合はスキップ）。
 
     Args:
-        directories: List of directories to delete
-        root_directory: The root directory for relative path display
-        dry_run: If True, only simulate deletion
+        directories: 削除対象のディレクトリリスト
+        root_directory: 相対パス表示用のルートディレクトリ
+        dry_run: Trueの場合、実際には削除しない
 
     Returns:
-        Number of successfully deleted directories
+        削除に成功したディレクトリの数
     """
     deleted_count = 0
 
@@ -118,6 +274,10 @@ def delete_directories(
             relative_path = directory.relative_to(root_directory)
         except ValueError:
             relative_path = directory
+
+        # venvディレクトリの場合、削除前にrequirements.txtを生成
+        if directory.name == VENV_DIR_NAME and is_python_venv(directory):
+            export_venv_requirements(directory, dry_run)
 
         try:
             if not dry_run:
@@ -136,15 +296,18 @@ def interactive_delete(
     dry_run: bool = False
 ) -> tuple[int, int]:
     """
-    Interactively confirm deletion for each directory.
+    各ディレクトリの削除を対話的に確認する。
+
+    venvディレクトリの場合は、削除前にrequirements.txtを
+    自動生成する（既に存在する場合はスキップ）。
 
     Args:
-        directories: List of directories to potentially delete
-        root_directory: The root directory for relative path display
-        dry_run: If True, only simulate deletion
+        directories: 削除候補のディレクトリリスト
+        root_directory: 相対パス表示用のルートディレクトリ
+        dry_run: Trueの場合、実際には削除しない
 
     Returns:
-        Tuple of (deleted_count, skipped_count)
+        (削除数, スキップ数) のタプル
     """
     if not directories:
         print("No target directories found.")
@@ -168,6 +331,10 @@ def interactive_delete(
             print("Aborted.")
             break
         elif response in ("yes", "y"):
+            # venvディレクトリの場合、削除前にrequirements.txtを生成
+            if directory.name == VENV_DIR_NAME and is_python_venv(directory):
+                export_venv_requirements(directory, dry_run)
+
             try:
                 if not dry_run:
                     shutil.rmtree(directory)
@@ -193,7 +360,7 @@ def main() -> int:
         Exit code (0 for success, 1 for error)
     """
     parser = argparse.ArgumentParser(
-        description="Clean node_modules and __pycache__ directories recursively",
+        description="node_modules, __pycache__, venvディレクトリを再帰的に削除",
         prog="nm_cleaner"
     )
     parser.add_argument(
