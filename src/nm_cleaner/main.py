@@ -289,15 +289,18 @@ def interactive_delete(
     dry_run: bool = False
 ) -> tuple[int, int]:
     """
-    Interactively confirm deletion for each directory.
+    各ディレクトリの削除を対話的に確認する。
+
+    venvディレクトリの場合は、削除前にrequirements.txtを
+    自動生成する（既に存在する場合はスキップ）。
 
     Args:
-        directories: List of directories to potentially delete
-        root_directory: The root directory for relative path display
-        dry_run: If True, only simulate deletion
+        directories: 削除候補のディレクトリリスト
+        root_directory: 相対パス表示用のルートディレクトリ
+        dry_run: Trueの場合、実際には削除しない
 
     Returns:
-        Tuple of (deleted_count, skipped_count)
+        (削除数, スキップ数) のタプル
     """
     if not directories:
         print("No target directories found.")
@@ -321,6 +324,10 @@ def interactive_delete(
             print("Aborted.")
             break
         elif response in ("yes", "y"):
+            # venvディレクトリの場合、削除前にrequirements.txtを生成
+            if directory.name == VENV_DIR_NAME and is_python_venv(directory):
+                export_venv_requirements(directory, dry_run)
+
             try:
                 if not dry_run:
                     shutil.rmtree(directory)
