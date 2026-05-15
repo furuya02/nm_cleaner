@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
 """
-nm_cleaner - node_modules, __pycache__, venvディレクトリを再帰的に削除するツール
+nm_cleaner - node_modules, __pycache__, Python venv仮想環境ディレクトリを再帰的に削除するツール
 
 指定されたディレクトリ配下のnode_modules、__pycache__、
 およびPythonのvenv仮想環境ディレクトリを検索し、
 ユーザーの確認後に削除する。
 
-venvディレクトリについては、Pythonのvenvモジュールで作成された
-仮想環境のみを対象とし、同名の通常ディレクトリは削除しない。
+Python venv仮想環境は、ディレクトリ名（venv、.venv等）に関わらず、
+pyvenv.cfgファイルとactivateスクリプトの存在によって検出する。
+これにより、Python venvモジュールで作成された仮想環境のみを対象とし、
+同名の通常ディレクトリの誤削除を防ぐ。
 
 venv削除時の自動バックアップ機能:
-    venvディレクトリを削除する際、pip freezeを実行して
+    venv仮想環境を削除する際、pip freezeを実行して
     依存パッケージの一覧をrequirements.txtとして自動的に保存する。
     既存のrequirements.txtがある場合は上書きする。これにより、
     venv削除後も `pip install -r requirements.txt` で
@@ -27,9 +29,6 @@ from typing import List, Optional
 
 # Target directories to clean
 TARGET_DIRS = {"node_modules", "__pycache__"}
-
-# venvディレクトリは追加の検証が必要なため、別途定義
-VENV_DIR_NAME = "venv"
 
 
 def is_python_venv(directory: Path) -> bool:
@@ -157,7 +156,8 @@ def find_target_directories(root_path: Path) -> List[Path]:
     削除対象:
     - node_modules: Node.jsの依存パッケージディレクトリ
     - __pycache__: Pythonのバイトコードキャッシュディレクトリ
-    - venv: Pythonのvenvモジュールで作成された仮想環境（検証済みのもののみ）
+    - Python venv仮想環境: ディレクトリ名に関わらず、
+      pyvenv.cfgとactivateスクリプトの存在によって検出（is_python_venv参照）
 
     Args:
         root_path: 検索を開始するルートディレクトリ
@@ -178,8 +178,8 @@ def find_target_directories(root_path: Path) -> List[Path]:
                 subdirs.clear()
                 continue
 
-            # 現在のディレクトリがPythonのvenv仮想環境かチェック
-            if current_path.name == VENV_DIR_NAME and is_python_venv(current_path):
+            # 現在のディレクトリがPython venv仮想環境かチェック（名前を問わない）
+            if is_python_venv(current_path):
                 target_dirs.append(current_path)
                 # venv内部は検索しない
                 subdirs.clear()
@@ -192,12 +192,12 @@ def find_target_directories(root_path: Path) -> List[Path]:
                     target_dirs.append(target_path)
                     subdirs.remove(target_name)
 
-            # サブディレクトリ内のvenvディレクトリをチェック
-            if VENV_DIR_NAME in subdirs:
-                venv_path = current_path / VENV_DIR_NAME
-                if is_python_venv(venv_path):
-                    target_dirs.append(venv_path)
-                    subdirs.remove(VENV_DIR_NAME)
+            # サブディレクトリのうち、Python venv仮想環境であるものをチェック（名前を問わない）
+            for subdir_name in list(subdirs):
+                subdir_path = current_path / subdir_name
+                if is_python_venv(subdir_path):
+                    target_dirs.append(subdir_path)
+                    subdirs.remove(subdir_name)
 
     except PermissionError as e:
         print(f"Warning: Permission denied: {e}", file=sys.stderr)
@@ -274,8 +274,8 @@ def delete_directories(
         except ValueError:
             relative_path = directory
 
-        # venvディレクトリの場合、削除前にrequirements.txtを生成
-        if directory.name == VENV_DIR_NAME and is_python_venv(directory):
+        # Python venv仮想環境の場合、削除前にrequirements.txtを生成
+        if is_python_venv(directory):
             export_venv_requirements(directory, dry_run)
 
         try:
@@ -330,8 +330,8 @@ def interactive_delete(
             print("Aborted.")
             break
         elif response in ("yes", "y"):
-            # venvディレクトリの場合、削除前にrequirements.txtを生成
-            if directory.name == VENV_DIR_NAME and is_python_venv(directory):
+            # Python venv仮想環境の場合、削除前にrequirements.txtを生成
+            if is_python_venv(directory):
                 export_venv_requirements(directory, dry_run)
 
             try:
