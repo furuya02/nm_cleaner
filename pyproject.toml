@@ -4,15 +4,18 @@ build-backend = "hatchling.build"
 
 [project]
 name = "nm_cleaner"
-version = "0.1.0"
-description = "A tool to clean node_modules and __pycache__ directories recursively"
+version = "0.2.0"
+description = "A tool to clean regenerable directories (node_modules, __pycache__, cdk.out, build caches, venv, old checkpoints) recursively"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
 authors = [
     { name = "furuya02", email = "spw0022@gmail.com" }
 ]
-keywords = ["node_modules", "__pycache__", "cleanup", "cli", "npm", "nodejs", "python"]
+keywords = [
+    "node_modules", "__pycache__", "cdk.out", "checkpoint",
+    "cleanup", "disk-space", "cli", "npm", "nodejs", "python",
+]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Environment :: Console",
