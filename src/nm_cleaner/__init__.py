@@ -1,3 +1,3 @@
-"""nm_cleaner - A tool to clean node_modules directories recursively."""
+"""nm_cleaner - A tool to clean regenerable directories recursively."""
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
