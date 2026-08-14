@@ -57,7 +57,7 @@ photos/
 - `pyvenv.cfg`ファイルが存在する
 - `bin/activate`（Unix系）または`Scripts/activate`（Windows）が存在する
 
-これにより、Pythonの`venv`モジュールで作成された仮想環境のみが対象となり、単に「venv」という名前の通常ディレクトリを誤って削除することを防ぎます。
+これにより、Pythonの`venv`モジュールや`uv`等で作成された仮想環境のみが対象となり、同名の通常ディレクトリを誤って削除することを防ぎます。
 
 #### requirements.txt自動生成
 

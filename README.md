@@ -57,7 +57,7 @@ A virtual environment is detected **regardless of its directory name**, and only
 - `pyvenv.cfg` exists
 - `bin/activate` (Unix) or `Scripts/activate` (Windows) exists
 
-This targets only environments created by Python's `venv` module, so a regular directory that happens to be named `venv` is never removed.
+This targets only environments created by Python's `venv` module (or tools such as `uv`), so a regular directory that happens to share the name is never removed.
 
 #### Automatic requirements.txt generation
 
